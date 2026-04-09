@@ -9,6 +9,7 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID", "0"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 
 UNIVERSE_IDS = []
 i = 1
@@ -73,7 +74,7 @@ async def build_embed():
 async def update_status():
     global message_id
 
-    channel = client.get_channel(GUILD_ID)
+    channel = client.get_channel(CHANNEL_ID)
     if not channel:
         return
 
@@ -87,7 +88,7 @@ async def update_status():
             msg = await channel.fetch_message(message_id)
             await msg.edit(embed=embed)
     except Exception as e:
-        print("Error:", e)
+        print("Ошибка:", e)
 
 @client.event
 async def on_ready():
