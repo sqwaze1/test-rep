@@ -103,6 +103,12 @@ async def build_embed_and_check_changes(channel):
     )
 
     embed.add_field(
+        name="ℹ️ Status Info",
+        value="🟢 - UP | 🔴 - DOWN",
+        inline=False
+    )
+
+    embed.add_field(
         name="📊 Summary",
         value=f"🟢 {up} | 🔴 {down}",
         inline=True
@@ -114,11 +120,7 @@ async def build_embed_and_check_changes(channel):
         inline=True
     )
 
-    embed.add_field(
-        name="ℹ️ Status Info",
-        value="🟢 - UP | 🔴 - DOWN",
-        inline=False
-    )
+
 
     return embed
 
