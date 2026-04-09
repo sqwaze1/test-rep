@@ -71,15 +71,6 @@ async def build_embed_and_check_changes(channel):
             if prev is not None and prev != status:
                 role_ping = f"<@&{ROLE_ID}>" if ROLE_ID else ""
 
-                if status:
-                    await channel.send(
-                        f"{role_ping} 🟢 **{name}** is BACK!\n<t:{now}:F>"
-                    )
-                else:
-                    await channel.send(
-                        f"{role_ping} 🔴 **{name}** is DOWN!\n<t:{now}:F>"
-                    )
-
             last_status[uid] = status
 
             if status:
