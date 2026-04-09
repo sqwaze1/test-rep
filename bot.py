@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = int(os.getenv("GUILD_ID", "0"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 
 UNIVERSE_IDS = []
@@ -24,6 +23,7 @@ intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 
 message_id = None
+last_status = {}
 
 
 async def get_game_status(session, universe_id):
@@ -32,7 +32,7 @@ async def get_game_status(session, universe_id):
     try:
         async with session.get(url) as resp:
             if resp.status != 200:
-                return "DELETED", f"Game {universe_id}"
+                return False, f"Game {universe_id}"
 
             data = await resp.json()
 
@@ -40,43 +40,42 @@ async def get_game_status(session, universe_id):
             is_active = data.get("isActive", False)
             privacy = data.get("privacyType", "Private")
 
-            if not is_active:
-                return "DISABLED", name
+            if is_active and privacy == "Public":
+                return True, name
 
-            if privacy != "Public":
-                return "PRIVATE", name
-
-            return "UP", name
+            return False, name
 
     except:
-        return "ERROR", f"Game {universe_id}"
+        return False, f"Game {universe_id}"
 
 
-async def build_embed():
-    stats = {
-        "UP": 0,
-        "PRIVATE": 0,
-        "DISABLED": 0,
-        "DELETED": 0,
-        "ERROR": 0
-    }
+async def build_embed_and_check_changes(channel):
+    global last_status
 
-    icons = {
-        "UP": "🟢",
-        "PRIVATE": "🟡",
-        "DISABLED": "🟠",
-        "DELETED": "🔴",
-        "ERROR": "⚫"
-    }
-
+    up = 0
+    down = 0
     lines = []
 
     async with aiohttp.ClientSession() as session:
         for uid in UNIVERSE_IDS:
             status, name = await get_game_status(session, uid)
 
-            stats[status] += 1
-            icon = icons.get(status, "❓")
+            prev = last_status.get(uid)
+
+            if prev is not None and prev != status:
+                if status:
+                    await channel.send(f"🟢 **{name}** is now UP")
+                else:
+                    await channel.send(f"🔴 **{name}** is now DOWN")
+
+            last_status[uid] = status
+
+            if status:
+                up += 1
+                icon = "🟢"
+            else:
+                down += 1
+                icon = "🔴"
 
             lines.append(f"• {name}: {icon}")
 
@@ -87,14 +86,8 @@ async def build_embed():
     )
 
     embed.add_field(
-        name="Summary",
-        value=(
-            f"🟢 UP: {stats['UP']}\n"
-            f"🟡 PRIVATE: {stats['PRIVATE']}\n"
-            f"🟠 DISABLED: {stats['DISABLED']}\n"
-            f"🔴 DELETED: {stats['DELETED']}\n"
-            f"⚫ ERROR: {stats['ERROR']}"
-        ),
+        name="Status Info",
+        value=f"🟢 - UP | 🔴 - DOWN\n\n🟢 {up} | 🔴 {down}",
         inline=False
     )
 
@@ -109,7 +102,7 @@ async def update_status():
     if not channel:
         return
 
-    embed = await build_embed()
+    embed = await build_embed_and_check_changes(channel)
 
     try:
         if message_id is None:
