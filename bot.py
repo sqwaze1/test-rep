@@ -30,9 +30,16 @@ async def get_game_status(session, universe_id):
     url = f"https://games.roblox.com/v1/games?universeIds={universe_id}"
     try:
         async with session.get(url) as resp:
+            if resp.status != 200:
+                return False, f"Game {universe_id}"
+
             data = await resp.json()
+
+            if "data" not in data or len(data["data"]) == 0:
+                return False, f"Game {universe_id}"
+
             game = data["data"][0]
-            return game.get("isPlayable", False), game.get("name", f"Game {universe_id}")
+            return True, game.get("name", f"Game {universe_id}")
     except:
         return False, f"Game {universe_id}"
 
