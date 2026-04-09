@@ -1,5 +1,5 @@
 import os
-import asyncio
+import time
 import aiohttp
 import discord
 from discord.ext import tasks
@@ -9,6 +9,7 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+ROLE_ID = int(os.getenv("ROLE_ID", "0"))
 
 UNIVERSE_IDS = []
 i = 1
@@ -39,14 +40,17 @@ async def get_game_status(session, universe_id):
             name = data.get("name", f"Game {universe_id}")
             is_active = data.get("isActive", False)
             privacy = data.get("privacyType", "Private")
+            root_place = data.get("rootPlaceId")
+
+            link = f"https://www.roblox.com/games/{root_place}"
 
             if is_active and privacy == "Public":
-                return True, name
+                return True, name, link
 
-            return False, name
+            return False, name, link
 
     except:
-        return False, f"Game {universe_id}"
+        return False, f"Game {universe_id}", None
 
 
 async def build_embed_and_check_changes(channel):
@@ -56,17 +60,26 @@ async def build_embed_and_check_changes(channel):
     down = 0
     lines = []
 
+    now = int(time.time())
+
     async with aiohttp.ClientSession() as session:
         for uid in UNIVERSE_IDS:
-            status, name = await get_game_status(session, uid)
+            status, name, link = await get_game_status(session, uid)
 
             prev = last_status.get(uid)
 
+            
             if prev is not None and prev != status:
+                role_ping = f"<@&{ROLE_ID}>" if ROLE_ID else ""
+
                 if status:
-                    await channel.send(f"🟢 **{name}** is now UP")
+                    await channel.send(
+                        f"🟢 **{name}** is BACK!\n<t:{now}:F>"
+                    )
                 else:
-                    await channel.send(f"🔴 **{name}** is now DOWN")
+                    await channel.send(
+                        f"🔴 **{name}** is DOWN!\n<t:{now}:F>"
+                    )
 
             last_status[uid] = status
 
@@ -77,18 +90,30 @@ async def build_embed_and_check_changes(channel):
                 down += 1
                 icon = "🔴"
 
-            lines.append(f"• {name}: {icon}")
+           
+            if link:
+                line = f"• [{name}]({link}): {icon}"
+            else:
+                line = f"• {name}: {icon}"
+
+            lines.append(line)
 
     embed = discord.Embed(
-        title="Games Status:",
+        title="🎮 Games Status",
         description="\n".join(lines),
-        color=0x2ecc71
+        color=0x2ecc71 if down == 0 else 0xe74c3c
     )
 
     embed.add_field(
-        name="Status Info",
-        value=f"🟢 - UP | 🔴 - DOWN\n\n🟢 {up} | 🔴 {down}",
-        inline=False
+        name="📊 Summary",
+        value=f"🟢 {up} | 🔴 {down}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="⏱ Last Update",
+        value=f"<t:{now}:R>",
+        inline=True
     )
 
     return embed
