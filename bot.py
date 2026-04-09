@@ -14,7 +14,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 UNIVERSE_IDS = []
 i = 1
 while True:
-    uid = os.getenv("UNIVERSE_ID_{}".format(i), "")
+    uid = os.getenv(f"UNIVERSE_ID_{i}", "")
     if not uid:
         break
     UNIVERSE_IDS.append(uid)
@@ -27,38 +27,56 @@ message_id = None
 
 
 async def get_game_status(session, universe_id):
-    url = f"https://games.roblox.com/v1/games?universeIds={universe_id}"
+    url = f"https://develop.roblox.com/v1/universes/{universe_id}"
+
     try:
         async with session.get(url) as resp:
             if resp.status != 200:
-                return False, f"Game {universe_id}"
+                return "DELETED", f"Game {universe_id}"
 
             data = await resp.json()
 
-            if "data" not in data or len(data["data"]) == 0:
-                return False, f"Game {universe_id}"
+            name = data.get("name", f"Game {universe_id}")
+            is_active = data.get("isActive", False)
+            privacy = data.get("privacyType", "Private")
 
-            game = data["data"][0]
-            return True, game.get("name", f"Game {universe_id}")
+            if not is_active:
+                return "DISABLED", name
+
+            if privacy != "Public":
+                return "PRIVATE", name
+
+            return "UP", name
+
     except:
-        return False, f"Game {universe_id}"
+        return "ERROR", f"Game {universe_id}"
 
 
 async def build_embed():
-    up = 0
-    down = 0
+    stats = {
+        "UP": 0,
+        "PRIVATE": 0,
+        "DISABLED": 0,
+        "DELETED": 0,
+        "ERROR": 0
+    }
+
+    icons = {
+        "UP": "🟢",
+        "PRIVATE": "🟡",
+        "DISABLED": "🟠",
+        "DELETED": "🔴",
+        "ERROR": "⚫"
+    }
+
     lines = []
 
     async with aiohttp.ClientSession() as session:
         for uid in UNIVERSE_IDS:
             status, name = await get_game_status(session, uid)
 
-            if status:
-                up += 1
-                icon = "🟢"
-            else:
-                down += 1
-                icon = "🔴"
+            stats[status] += 1
+            icon = icons.get(status, "❓")
 
             lines.append(f"• {name}: {icon}")
 
@@ -69,8 +87,14 @@ async def build_embed():
     )
 
     embed.add_field(
-        name="Status Info",
-        value=f"🟢 - UP | 🔴 - DOWN\n\n🟢 {up} | 🔴 {down}",
+        name="Summary",
+        value=(
+            f"🟢 UP: {stats['UP']}\n"
+            f"🟡 PRIVATE: {stats['PRIVATE']}\n"
+            f"🟠 DISABLED: {stats['DISABLED']}\n"
+            f"🔴 DELETED: {stats['DELETED']}\n"
+            f"⚫ ERROR: {stats['ERROR']}"
+        ),
         inline=False
     )
 
@@ -97,9 +121,11 @@ async def update_status():
     except Exception as e:
         print("Ошибка:", e)
 
+
 @client.event
 async def on_ready():
     print(f"Bot started as {client.user}")
     update_status.start()
+
 
 client.run(DISCORD_TOKEN)
