@@ -68,17 +68,16 @@ async def build_embed_and_check_changes(channel):
 
             prev = last_status.get(uid)
 
-            
             if prev is not None and prev != status:
                 role_ping = f"<@&{ROLE_ID}>" if ROLE_ID else ""
 
                 if status:
                     await channel.send(
-                        f"🟢 **{name}** is BACK!\n<t:{now}:F>"
+                        f"{role_ping} 🟢 **{name}** is BACK!\n<t:{now}:F>"
                     )
                 else:
                     await channel.send(
-                        f"🔴 **{name}** is DOWN!\n<t:{now}:F>"
+                        f"{role_ping} 🔴 **{name}** is DOWN!\n<t:{now}:F>"
                     )
 
             last_status[uid] = status
@@ -90,11 +89,10 @@ async def build_embed_and_check_changes(channel):
                 down += 1
                 icon = "🔴"
 
-           
             if link:
-                line = f"• [{name}]({link}): {icon}"
+                line = f"• [**{name}**]({link}): {icon}"
             else:
-                line = f"• {name}: {icon}"
+                line = f"• **{name}**: {icon}"
 
             lines.append(line)
 
@@ -114,6 +112,12 @@ async def build_embed_and_check_changes(channel):
         name="⏱ Last Update",
         value=f"<t:{now}:R>",
         inline=True
+    )
+
+    embed.add_field(
+        name="ℹ️ Status Info",
+        value="🟢 - UP | 🔴 - DOWN",
+        inline=False
     )
 
     return embed
