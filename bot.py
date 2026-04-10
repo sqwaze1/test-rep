@@ -98,7 +98,7 @@ async def build_message_and_check_changes(channel):
     return message
 
 
-@tasks.loop(seconds=120)
+@tasks.loop(seconds=600)
 async def update_status():
     global message_id
 
