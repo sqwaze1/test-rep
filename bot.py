@@ -87,7 +87,7 @@ async def build_message_and_check_changes(channel):
             icon = "🟢" if status else "🔴"
 
             block = (
-                f"🛒 **{name}**\n"
+                f"**{name}**\n"
                 f"> * Game Status: {status_text} {icon}\n"
                 f"> * Online: {players} 👥\n"
                 f"[JOIN GAME]({link}) 👈\n"
