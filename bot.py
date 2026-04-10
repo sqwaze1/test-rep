@@ -27,78 +27,34 @@ message_id = None
 last_status = {}
 
 
-async def get_game_status(session, universe_id):
-    url = f"https://develop.roblox.com/v1/universes/{universe_id}"
+async def get_game_full_data(session, universe_id):
+    dev_url = f"https://develop.roblox.com/v1/universes/{universe_id}"
+    game_url = f"https://games.roblox.com/v1/games?universeIds={universe_id}"
 
     try:
-        async with session.get(url) as resp:
-            if resp.status != 200:
-                return False, f"Game {universe_id}"
+        async with session.get(dev_url) as resp:
+            dev_data = await resp.json()
 
-            data = await resp.json()
+        async with session.get(game_url) as resp:
+            game_data = await resp.json()
 
-            name = data.get("name", f"Game {universe_id}")
-            is_active = data.get("isActive", False)
-            privacy = data.get("privacyType", "Private")
-            root_place = data.get("rootPlaceId")
+        name = dev_data.get("name", f"Game {universe_id}")
+        root_place = dev_data.get("rootPlaceId")
+        link = f"https://www.roblox.com/games/{root_place}" if root_place else None
 
-            link = f"https://www.roblox.com/games/{root_place}"
+        is_active = dev_data.get("isActive", False)
+        privacy = dev_data.get("privacyType", "Private")
 
-            if is_active and privacy == "Public":
-                return True, name, link
+        status = is_active and privacy == "Public"
 
-            return False, name, link
+        players = 0
+        if game_data.get("data"):
+            players = game_data["data"][0].get("playing", 0)
+
+        return name, status, players, link
 
     except:
-        return False, f"Game {universe_id}", None
-
-
-async def build_embed_and_check_changes(channel):
-    global last_status
-
-    now = int(time.time())
-    blocks = []
-
-    async with aiohttp.ClientSession() as session:
-        for uid in UNIVERSE_IDS:
-            name, status, players, link = await get_game_full_data(session, uid)
-
-            prev = last_status.get(uid)
-
-            if prev is not None and prev != status:
-                role_ping = f"<@&{ROLE_ID}>" if ROLE_ID else ""
-
-                if status:
-                    await channel.send(
-                        f"{role_ping} 🟢 **{name}** восстановлена!\n<t:{now}:F>"
-                    )
-                else:
-                    await channel.send(
-                        f"{role_ping} 🔴 **{name}** упала!\n<t:{now}:F>"
-                    )
-
-            last_status[uid] = status
-
-            status_text = "Active" if status else "Down"
-            icon = "🟢" if status else "🔴"
-
-            block = (
-                f"🛒 **{name}**\n"
-                f"> * Game Status: {status_text} {icon}\n"
-                f"> * Online: {players} 👥\n"
-                f"> * Last Update: <t:{now}:R> 🕐\n"
-                f"[JOIN GAME]({link}) 👈\n"
-            )
-
-            blocks.append(block)
-
-    embed = discord.Embed(
-        title="🎮 Games Monitor",
-        description="\n".join(blocks),
-        color=0x2ecc71
-    )
-
-    return embed
+        return f"Game {universe_id}", False, 0, None
 
 
 @tasks.loop(seconds=120)
