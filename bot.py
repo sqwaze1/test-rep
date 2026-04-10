@@ -57,7 +57,7 @@ async def get_game_full_data(session, universe_id):
         return f"Game {universe_id}", False, 0, None
 
 
-async def build_embed_and_check_changes(channel):
+async def build_message_and_check_changes(channel):
     global last_status
 
     now = int(time.time())
@@ -90,19 +90,15 @@ async def build_embed_and_check_changes(channel):
                 f"🛒 **{name}**\n"
                 f"> * Game Status: {status_text} {icon}\n"
                 f"> * Online: {players} 👥\n"
-                f"> * Last Update: <t:{now}:R> 🕐\n"
                 f"[JOIN GAME]({link}) 👈\n"
             )
 
             blocks.append(block)
 
-    embed = discord.Embed(
-        title="🎮 Games",
-        description="\n".join(blocks),
-        color=0x2ecc71 if all(last_status.values()) else 0xe74c3c
-    )
+    message = "\n".join(blocks)
+    message += f"\n\n⏱ Last Update: <t:{now}:R>"
 
-    return embed
+    return message
 
 
 @tasks.loop(seconds=120)
@@ -113,15 +109,15 @@ async def update_status():
     if not channel:
         return
 
-    embed = await build_embed_and_check_changes(channel)
+    content = await build_message_and_check_changes(channel)
 
     try:
         if message_id is None:
-            msg = await channel.send(embed=embed)
+            msg = await channel.send(content)
             message_id = msg.id
         else:
             msg = await channel.fetch_message(message_id)
-            await msg.edit(embed=embed)
+            await msg.edit(content=content)
     except Exception as e:
         print("Ошибка:", e)
 
