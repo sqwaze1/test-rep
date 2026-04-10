@@ -56,62 +56,47 @@ async def get_game_status(session, universe_id):
 async def build_embed_and_check_changes(channel):
     global last_status
 
-    up = 0
-    down = 0
-    lines = []
-
     now = int(time.time())
+    blocks = []
 
     async with aiohttp.ClientSession() as session:
         for uid in UNIVERSE_IDS:
-            status, name, link = await get_game_status(session, uid)
+            name, status, players, link = await get_game_full_data(session, uid)
 
             prev = last_status.get(uid)
 
             if prev is not None and prev != status:
                 role_ping = f"<@&{ROLE_ID}>" if ROLE_ID else ""
 
+                if status:
+                    await channel.send(
+                        f"{role_ping} 🟢 **{name}** восстановлена!\n<t:{now}:F>"
+                    )
+                else:
+                    await channel.send(
+                        f"{role_ping} 🔴 **{name}** упала!\n<t:{now}:F>"
+                    )
+
             last_status[uid] = status
 
-            if status:
-                up += 1
-                icon = "🟢"
-            else:
-                down += 1
-                icon = "🔴"
+            status_text = "Active" if status else "Down"
+            icon = "🟢" if status else "🔴"
 
-            if link:
-                line = f"• [**{name}**]({link}): {icon}"
-            else:
-                line = f"• **{name}**: {icon}"
+            block = (
+                f"🛒 **{name}**\n"
+                f"> * Game Status: {status_text} {icon}\n"
+                f"> * Online: {players} 👥\n"
+                f"> * Last Update: <t:{now}:R> 🕐\n"
+                f"[JOIN GAME]({link}) 👈\n"
+            )
 
-            lines.append(line)
+            blocks.append(block)
 
     embed = discord.Embed(
-        title="🎮 Games Status",
-        description="\n".join(lines),
-        color=0x2ecc71 if down == 0 else 0xe74c3c
+        title="🎮 Games Monitor",
+        description="\n".join(blocks),
+        color=0x2ecc71
     )
-
-    embed.add_field(
-        name="ℹ️ Status Info",
-        value="🟢 - UP | 🔴 - DOWN",
-        inline=False
-    )
-
-    embed.add_field(
-        name="📊 Summary",
-        value=f"🟢 {up} | 🔴 {down}",
-        inline=True
-    )
-
-    embed.add_field(
-        name="⏱ Last Update",
-        value=f"<t:{now}:R>",
-        inline=True
-    )
-
-
 
     return embed
 
