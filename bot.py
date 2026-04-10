@@ -1,5 +1,6 @@
 import os
 import time
+import asyncio
 import aiohttp
 import discord
 from discord.ext import tasks
@@ -9,7 +10,6 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
-ROLE_ID = int(os.getenv("ROLE_ID", "0"))
 
 UNIVERSE_IDS = []
 i = 1
@@ -32,10 +32,10 @@ async def get_game_full_data(session, universe_id):
     game_url = f"https://games.roblox.com/v1/games?universeIds={universe_id}"
 
     try:
-        async with session.get(dev_url) as resp:
+        async with session.get(dev_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
             dev_data = await resp.json()
 
-        async with session.get(game_url) as resp:
+        async with session.get(game_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
             game_data = await resp.json()
 
         name = dev_data.get("name", f"Game {universe_id}")
@@ -44,7 +44,6 @@ async def get_game_full_data(session, universe_id):
 
         is_active = dev_data.get("isActive", False)
         privacy = dev_data.get("privacyType", "Private")
-
         status = is_active and privacy == "Public"
 
         players = 0
@@ -53,7 +52,8 @@ async def get_game_full_data(session, universe_id):
 
         return name, status, players, link
 
-    except:
+    except Exception as e:
+        print(f"Error fetching game {universe_id}: {e}")
         return f"Game {universe_id}", False, 0, None
 
 
@@ -61,43 +61,40 @@ async def build_message_and_check_changes(channel):
     global last_status
 
     now = int(time.time())
-    blocks = []
 
     async with aiohttp.ClientSession() as session:
-        for uid in UNIVERSE_IDS:
-            name, status, players, link = await get_game_full_data(session, uid)
+        results = await asyncio.gather(
+            *[get_game_full_data(session, uid) for uid in UNIVERSE_IDS]
+        )
 
-            prev = last_status.get(uid)
+    combined = list(zip(UNIVERSE_IDS, results))
+    combined.sort(key=lambda x: x[1][2], reverse=True)
 
-            if prev is not None and prev != status:
-                
+    blocks = []
+    for uid, (name, status, players, link) in combined:
+        prev = last_status.get(uid)
 
-                if status:
-                    await channel.send(
-                        f"{role_ping} 🟢 **{name}** is BACK!\n<t:{now}:F>"
-                    )
-                else:
-                    await channel.send(
-                        f"{role_ping} 🔴 **{name}** is DOWN!\n<t:{now}:F>"
-                    )
+        if prev is not None and prev != status:
+            if status:
+                await channel.send(f"🟢 **{name}** is BACK!\n<t:{now}:F>")
+            else:
+                await channel.send(f"🔴 **{name}** is DOWN!\n<t:{now}:F>")
 
-            last_status[uid] = status
+        last_status[uid] = status
 
-            status_text = "Active" if status else "Down"
-            icon = "🟢" if status else "🔴"
+        status_text = "Active" if status else "Down"
+        icon = "🟢" if status else "🔴"
 
-            block = (
-                f"**{name}**\n"
-                f"> * Game Status: {status_text} {icon}\n"
-                f"> * Online: {players} 👥\n"
-                f"[JOIN GAME]({link}) 👈\n"
-            )
-
-            blocks.append(block)
+        block = (
+            f"**{name}**\n"
+            f"> * Game Status: {status_text} {icon}\n"
+            f"> * Online: {players} 👥\n"
+            f"[JOIN GAME](<{link}>) 👈\n"
+        )
+        blocks.append(block)
 
     message = "\n".join(blocks)
     message += f"\n\n⏱ Last Update: <t:{now}:R>"
-
     return message
 
 
@@ -118,8 +115,11 @@ async def update_status():
         else:
             msg = await channel.fetch_message(message_id)
             await msg.edit(content=content)
+    except discord.NotFound:
+        msg = await channel.send(content)
+        message_id = msg.id
     except Exception as e:
-        print("Ошибка:", e)
+        print(f"Error updating message: {e}")
 
 
 @client.event
