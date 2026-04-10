@@ -70,15 +70,15 @@ async def build_message_and_check_changes(channel):
             prev = last_status.get(uid)
 
             if prev is not None and prev != status:
-                role_ping = f"<@&{ROLE_ID}>" if ROLE_ID else ""
+                
 
                 if status:
                     await channel.send(
-                        f"{role_ping} 🟢 **{name}** восстановлена!\n<t:{now}:F>"
+                        f"{role_ping} 🟢 **{name}** is BACK!\n<t:{now}:F>"
                     )
                 else:
                     await channel.send(
-                        f"{role_ping} 🔴 **{name}** упала!\n<t:{now}:F>"
+                        f"{role_ping} 🔴 **{name}** is DOWN!\n<t:{now}:F>"
                     )
 
             last_status[uid] = status
