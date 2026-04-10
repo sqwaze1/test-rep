@@ -57,6 +57,54 @@ async def get_game_full_data(session, universe_id):
         return f"Game {universe_id}", False, 0, None
 
 
+async def build_embed_and_check_changes(channel):
+    global last_status
+
+    now = int(time.time())
+    blocks = []
+
+    async with aiohttp.ClientSession() as session:
+        for uid in UNIVERSE_IDS:
+            name, status, players, link = await get_game_full_data(session, uid)
+
+            prev = last_status.get(uid)
+
+            if prev is not None and prev != status:
+                role_ping = f"<@&{ROLE_ID}>" if ROLE_ID else ""
+
+                if status:
+                    await channel.send(
+                        f"{role_ping} 🟢 **{name}** восстановлена!\n<t:{now}:F>"
+                    )
+                else:
+                    await channel.send(
+                        f"{role_ping} 🔴 **{name}** упала!\n<t:{now}:F>"
+                    )
+
+            last_status[uid] = status
+
+            status_text = "Active" if status else "Down"
+            icon = "🟢" if status else "🔴"
+
+            block = (
+                f"🛒 **{name}**\n"
+                f"> * Game Status: {status_text} {icon}\n"
+                f"> * Online: {players} 👥\n"
+                f"> * Last Update: <t:{now}:R> 🕐\n"
+                f"[JOIN GAME]({link}) 👈\n"
+            )
+
+            blocks.append(block)
+
+    embed = discord.Embed(
+        title="🎮 Games",
+        description="\n".join(blocks),
+        color=0x2ecc71 if all(last_status.values()) else 0xe74c3c
+    )
+
+    return embed
+
+
 @tasks.loop(seconds=120)
 async def update_status():
     global message_id
