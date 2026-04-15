@@ -24,7 +24,6 @@ intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 
 message_id = None
-last_status = {}
 
 
 async def get_game_full_data(session, universe_id):
@@ -57,9 +56,7 @@ async def get_game_full_data(session, universe_id):
         return f"Game {universe_id}", False, 0, None
 
 
-async def build_message_and_check_changes(channel):
-    global last_status
-
+async def build_message(channel):
     now = int(time.time())
 
     async with aiohttp.ClientSession() as session:
@@ -72,16 +69,6 @@ async def build_message_and_check_changes(channel):
 
     blocks = []
     for uid, (name, status, players, link) in combined:
-        prev = last_status.get(uid)
-
-        if prev is not None and prev != status:
-            if status:
-                await channel.send(f"🟢 **{name}** is BACK!\n<t:{now}:F>")
-            else:
-                await channel.send(f"🔴 **{name}** is DOWN!\n<t:{now}:F>")
-
-        last_status[uid] = status
-
         status_text = "Active" if status else "Down"
         icon = "🟢" if status else "🔴"
 
@@ -98,7 +85,7 @@ async def build_message_and_check_changes(channel):
     return message
 
 
-@tasks.loop(seconds=600)
+@tasks.loop(seconds=1800)
 async def update_status():
     global message_id
 
@@ -106,7 +93,7 @@ async def update_status():
     if not channel:
         return
 
-    content = await build_message_and_check_changes(channel)
+    content = await build_message(channel)
 
     try:
         if message_id is None:
