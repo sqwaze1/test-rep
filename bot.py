@@ -23,7 +23,7 @@ while True:
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 
-message_id = None
+message_ids = []
 
 
 async def get_game_full_data(session, universe_id):
@@ -56,7 +56,7 @@ async def get_game_full_data(session, universe_id):
         return f"Game {universe_id}", False, 0, None
 
 
-async def build_message(channel):
+async def build_message():
     now = int(time.time())
 
     async with aiohttp.ClientSession() as session:
@@ -80,31 +80,53 @@ async def build_message(channel):
         )
         blocks.append(block)
 
-    message = "\n".join(blocks)
-    message += f"\n\n⏱ Last Update: <t:{now}:R>"
-    return message
+    content = "\n".join(blocks)
+    content += f"\n\n⏱ Last Update: <t:{now}:R>"
+
+    
+    chunks = []
+    while len(content) > 2000:
+        split_at = content.rfind("\n", 0, 2000)
+        if split_at == -1:
+            split_at = 2000
+        chunks.append(content[:split_at])
+        content = content[split_at:].lstrip("\n")
+    chunks.append(content)
+
+    return chunks
 
 
-@tasks.loop(seconds=1800)
+@tasks.loop(seconds=600)
 async def update_status():
-    global message_id
+    global message_ids
 
     channel = client.get_channel(CHANNEL_ID)
     if not channel:
         return
 
-    content = await build_message(channel)
+    chunks = await build_message()
 
     try:
-        if message_id is None:
-            msg = await channel.send(content)
-            message_id = msg.id
+        if not message_ids:
+            
+            for chunk in chunks:
+                msg = await channel.send(chunk)
+                message_ids.append(msg.id)
         else:
-            msg = await channel.fetch_message(message_id)
-            await msg.edit(content=content)
-    except discord.NotFound:
-        msg = await channel.send(content)
-        message_id = msg.id
+            
+            for i, chunk in enumerate(chunks):
+                if i < len(message_ids):
+                    try:
+                        msg = await channel.fetch_message(message_ids[i])
+                        await msg.edit(content=chunk)
+                    except discord.NotFound:
+                        msg = await channel.send(chunk)
+                        message_ids[i] = msg.id
+                else:
+                    # Новых частей стало больше
+                    msg = await channel.send(chunk)
+                    message_ids.append(msg.id)
+
     except Exception as e:
         print(f"Error updating message: {e}")
 
