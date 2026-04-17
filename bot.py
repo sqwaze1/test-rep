@@ -96,7 +96,7 @@ async def build_message():
     return chunks
 
 
-@tasks.loop(seconds=600)
+@tasks.loop(seconds=1800)
 async def update_status():
     global message_ids
 
@@ -123,7 +123,7 @@ async def update_status():
                         msg = await channel.send(chunk)
                         message_ids[i] = msg.id
                 else:
-                    # Новых частей стало больше
+                    
                     msg = await channel.send(chunk)
                     message_ids.append(msg.id)
 
