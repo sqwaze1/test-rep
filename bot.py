@@ -43,10 +43,13 @@ async def get_game_full_data(session, universe_id):
 
         is_active = dev_data.get("isActive", False)
         privacy = dev_data.get("privacyType", "Private")
-        status = is_active and privacy == "Public"
+
+        has_game_data = bool(game_data.get("data"))
+
+        status = is_active and privacy == "Public" and has_game_data
 
         players = 0
-        if game_data.get("data"):
+        if has_game_data:
             players = game_data["data"][0].get("playing", 0)
 
         return name, status, players, link
